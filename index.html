@@ -8,15 +8,15 @@
 <style>
 body {
   margin: 0;
-  font-family: Inter, sans-serif;
+  font-family: Arial, sans-serif;
   background: #0b1020;
-  color: #fff;
+  color: white;
 }
 
 .wrap {
   max-width: 1200px;
   margin: auto;
-  padding: 30px;
+  padding: 20px;
 }
 
 h1 {
@@ -25,53 +25,52 @@ h1 {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
 }
 
 .card {
   background: #121a30;
-  border-radius: 16px;
-  padding: 20px;
+  padding: 15px;
+  border-radius: 10px;
 }
 
 .name {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 .sub {
-  font-size: 13px;
-  color: #9aa4c7;
+  font-size: 12px;
+  color: #aaa;
   margin-bottom: 10px;
 }
 
 .rank {
-  margin-bottom: 10px;
   color: #ff4655;
-  font-weight: 600;
+  margin-bottom: 10px;
 }
 
 .stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  display: flex;
+  justify-content: space-between;
 }
 
 .stat {
-  background: #192341;
-  padding: 10px;
-  border-radius: 10px;
   text-align: center;
 }
 
 .value {
-  font-weight: 700;
+  font-weight: bold;
 }
 
 .label {
-  font-size: 12px;
-  color: #9aa4c7;
+  font-size: 11px;
+  color: #aaa;
+}
+
+.error {
+  color: red;
 }
 </style>
 </head>
@@ -91,48 +90,58 @@ const PLAYERS = [
 
 const API = "https://stattracker.vercel.app/api/team";
 
-async function load() {
+async function loadStats() {
   const grid = document.getElementById("grid");
 
-  const res = await fetch(API + "?players=" + encodeURIComponent(PLAYERS.join(",")));
-  const data = await res.json();
+  try {
+    const res = await fetch(API + "?players=" + encodeURIComponent(PLAYERS.join(",")));
+    const data = await res.json();
 
-  grid.innerHTML = data.map(p => {
-    if (p.error) {
-      return `<div class="card">${p.error}</div>`;
-    }
+    grid.innerHTML = data.map(p => {
 
-    const [k, d, a] = p.kda.split("/").map(x => Number(x.trim()));
-    const kd = d > 0 ? (k / d).toFixed(2) : k.toFixed(2);
+      if (p.error) {
+        return `<div class="card error">${p.riotId}<br>${p.error}</div>`;
+      }
 
-    return `
-      <div class="card">
-        <div class="name">${p.riotId}</div>
-        <div class="sub">${p.seasonLabel}</div>
-        <div class="rank">${p.rank || "Unranked"} • ${p.rr || 0} RR</div>
+      const [k, d, a] = (p.kda || "0/0/0").split("/").map(x => Number(x.trim()));
+      const kd = d > 0 ? (k / d).toFixed(2) : k.toFixed(2);
 
-        <div class="stats">
-          <div class="stat">
-            <div class="value">${k}/${d}/${a}</div>
-            <div class="label">KDA</div>
+      return `
+        <div class="card">
+          <div class="name">${p.riotId}</div>
+          <div class="sub">${p.seasonLabel || "Tracker"}</div>
+
+          <div class="rank">
+            ${p.rank || "Unranked"} • ${p.rr || 0} RR
           </div>
 
-          <div class="stat">
-            <div class="value">${kd}</div>
-            <div class="label">K/D</div>
-          </div>
+          <div class="stats">
+            <div class="stat">
+              <div class="value">${k}/${d}/${a}</div>
+              <div class="label">KDA</div>
+            </div>
 
-          <div class="stat">
-            <div class="value">${p.hs || 0}%</div>
-            <div class="label">HS%</div>
+            <div class="stat">
+              <div class="value">${kd}</div>
+              <div class="label">K/D</div>
+            </div>
+
+            <div class="stat">
+              <div class="value">${p.hs || 0}%</div>
+              <div class="label">HS%</div>
+            </div>
           </div>
         </div>
-      </div>
-    `;
-  }).join("");
+      `;
+    }).join("");
+
+  } catch (err) {
+    grid.innerHTML = "Failed to load stats";
+    console.error(err);
+  }
 }
 
-load();
+loadStats();
 </script>
 </body>
 </html>
