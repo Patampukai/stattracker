@@ -30,11 +30,7 @@ export default async function handler(req, res) {
     const results = [];
 
     for (const entry of players) {
-      const [riot, regionRaw = "eu", platformRaw = "pc"] = entry.split("@");
-      const [name, tag] = (riot || "").split("#");
-
-      const region = (regionRaw || "eu").toLowerCase();
-      const platform = (platformRaw || "pc").toLowerCase();
+      const [name, tag] = (entry || "").split("#");
 
       if (!name || !tag) {
         results.push({
@@ -46,30 +42,42 @@ export default async function handler(req, res) {
           firstKills: 0,
           firstDeaths: 0,
           agents: [],
-          error: "Invalid Riot ID format in backend query",
+          error: "Invalid Riot ID format",
         });
         continue;
       }
 
       try {
-        // Optional account lookup so the returned riotId is canonical
         const accountRes = await fetch(
           `https://api.henrikdev.xyz/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
           { headers }
         );
 
-        let canonicalName = name;
-        let canonicalTag = tag;
-
-        if (accountRes.ok) {
-          const accountJson = await accountRes.json();
-          canonicalName = accountJson?.data?.name || name;
-          canonicalTag = accountJson?.data?.tag || tag;
+        if (!accountRes.ok) {
+          const errorText = await accountRes.text();
+          results.push({
+            riotId: `${name}#${tag}`,
+            seasonLabel: "Current Act",
+            kd: 0,
+            kda: "0 / 0 / 0",
+            hs: 0,
+            firstKills: 0,
+            firstDeaths: 0,
+            agents: [],
+            error: `Account lookup failed (${accountRes.status}): ${errorText}`,
+          });
+          continue;
         }
 
-        // Fetch a chunk of recent competitive matches
+        const accountJson = await accountRes.json();
+
+        const canonicalName = accountJson?.data?.name || name;
+        const canonicalTag = accountJson?.data?.tag || tag;
+        const region =
+          (accountJson?.data?.region || accountJson?.data?.account_region || "eu").toLowerCase();
+
         const matchesRes = await fetch(
-          `https://api.henrikdev.xyz/valorant/v4/matches/${encodeURIComponent(region)}/${encodeURIComponent(platform)}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}?mode=competitive&size=10`,
+          `https://api.henrikdev.xyz/valorant/v4/matches/${encodeURIComponent(region)}/pc/${encodeURIComponent(canonicalName)}/${encodeURIComponent(canonicalTag)}?mode=competitive&size=10`,
           { headers }
         );
 
@@ -106,8 +114,6 @@ export default async function handler(req, res) {
           continue;
         }
 
-        // Current act heuristic:
-        // use the newest returned match's season_id, then only count matches from that same season_id
         const currentSeasonId =
           matches[0]?.metadata?.season_id ||
           matches[0]?.meta?.season_id ||
@@ -136,16 +142,16 @@ export default async function handler(req, res) {
             match?.players ||
             [];
 
-          let me =
-            allPlayers.find(
-              (p) =>
-                String(p?.name || "").toLowerCase() === name.toLowerCase() &&
-                String(p?.tag || "").toLowerCase() === tag.toLowerCase()
-            ) ||
+          const me =
             allPlayers.find(
               (p) =>
                 String(p?.name || "").toLowerCase() === canonicalName.toLowerCase() &&
                 String(p?.tag || "").toLowerCase() === canonicalTag.toLowerCase()
+            ) ||
+            allPlayers.find(
+              (p) =>
+                String(p?.name || "").toLowerCase() === name.toLowerCase() &&
+                String(p?.tag || "").toLowerCase() === tag.toLowerCase()
             );
 
           if (!me) continue;
@@ -155,22 +161,12 @@ export default async function handler(req, res) {
           totalKills += Number(stats.kills || 0);
           totalDeaths += Number(stats.deaths || 0);
           totalAssists += Number(stats.assists || 0);
-
           totalHeadshots += Number(stats.headshots || 0);
           totalBodyshots += Number(stats.bodyshots || 0);
           totalLegshots += Number(stats.legshots || 0);
 
-          totalFirstKills += Number(
-            stats.firstkills ??
-            stats.first_kills ??
-            0
-          );
-
-          totalFirstDeaths += Number(
-            stats.firstdeaths ??
-            stats.first_deaths ??
-            0
-          );
+          totalFirstKills += Number(stats.firstkills ?? stats.first_kills ?? 0);
+          totalFirstDeaths += Number(stats.firstdeaths ?? stats.first_deaths ?? 0);
 
           const agent = me?.character || me?.agent?.name || null;
           if (agent) {
