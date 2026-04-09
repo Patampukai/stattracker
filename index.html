@@ -6,7 +6,7 @@
     <title>Valorant Team Act Stats</title>
     <style>
       :root {
-        --bg: #0bffff;
+        --bg: #0b1020;
         --panel: #121a30;
         --panel-2: #192341;
         --text: #eef3ff;
@@ -192,7 +192,7 @@
         <div class="toolbar">
           <button id="loadBtn">Refresh Team Stats</button>
           <button id="demoBtn" class="subtle">Use Demo Data</button>
-          <span class="meta">Edit the <code>TEAM_PLAYERS</code> list in the code to choose who appears on the site.</span>
+          <span class="meta">Edit the <code>TEAM_PLAYERS</code> list in the code to choose who appears on the site. Region is auto-detected by the backend.</span>
         </div>
         <div id="status" class="status"></div>
       </section>
@@ -204,16 +204,16 @@
     <script>
       // Put your players here once. The page will always load these cards.
       // displayName is what shows on the page.
-      // name, tag, and region are used for the backend API.
+      // name and tag are used for the backend API.
+      // Region is auto-detected by the backend.
       const TEAM_PLAYERS = [
-        { displayName: 'VoicelessV', name: 'VoicelessV', tag: 'daun', region: 'euw' },
-        { displayName: 'OglukasM', name: 'OglukasM', tag: 'RAWRR', region: 'euw' },
-        { displayName: 'Knightly', name: 'Knightly', tag: 'Blawg', region: 'euw' },
-        { displayName: '0visman', name: '0visman', tag: 'ptmp', region: 'euw' }
+        { displayName: 'VoicelessV', name: 'VoicelessV', tag: 'daun' },
+        { displayName: 'Knightly', name: 'Knightly', tag: 'Blawg' },
+        { displayName: '0visman', name: '0visman', tag: 'ptmp' }
       ];
 
       // Change this to your real Vercel backend URL.
-      const API_BASE = 'stattracker.vercel.app';
+      const API_BASE = 'https://stattracker.vercel.app/';
 
       const demoPlayers = [
         {
@@ -327,7 +327,7 @@
 
       async function fetchTeamStats() {
         const query = TEAM_PLAYERS
-          .map(p => `${p.name}#${p.tag}@${p.region}`)
+          .map(p => `${p.name}#${p.tag}`)
           .join(',');
 
         const res = await fetch(`${API_BASE}/api/team?players=${encodeURIComponent(query)}`);
@@ -368,7 +368,7 @@
 
       renderPlayers(demoPlayers);
       renderSummary(demoPlayers);
-      statusEl.textContent = 'Template ready. Replace TEAM_PLAYERS and API_BASE, then refresh.';
+      statusEl.textContent = 'Template ready. Replace TEAM_PLAYERS and API_BASE, then refresh. Region is auto-detected.';
     </script>
   </body>
 </html>
