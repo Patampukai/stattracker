@@ -6,7 +6,7 @@
     <title>Valorant Team Act Stats</title>
     <style>
       :root {
-        --bg: #8d1426;
+        --bg: #0b1020;
         --panel: #121a30;
         --panel-2: #192341;
         --text: #eef3ff;
@@ -24,7 +24,7 @@
       }
 
       .wrap {
-        max-width: 1200px;
+        max-width: 1280px;
         margin: 0 auto;
         padding: 32px 20px 48px;
       }
@@ -63,12 +63,6 @@
         background: var(--accent);
         color: white;
         cursor: pointer;
-      }
-
-      .subtle {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--text);
       }
 
       .meta {
@@ -112,7 +106,7 @@
       .team-grid {
         margin-top: 22px;
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         gap: 16px;
       }
 
@@ -174,6 +168,16 @@
         font-size: 13px;
       }
 
+      .error-box {
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(255, 70, 85, 0.12);
+        border: 1px solid rgba(255, 70, 85, 0.25);
+        color: #ffd5d9;
+        font-size: 13px;
+      }
+
       @media (max-width: 700px) {
         .hero { flex-direction: column; align-items: start; }
       }
@@ -184,15 +188,14 @@
       <section class="hero">
         <div>
           <h1>Valorant Team Act Stats</h1>
-          <p>Fixed player cards with live stats from your backend. No typing Riot IDs on the page.</p>
+          <p>Saved player cards with live current-act stats only. No demo cards, no user input.</p>
         </div>
       </section>
 
       <section class="panel">
         <div class="toolbar">
           <button id="loadBtn">Refresh Team Stats</button>
-          <button id="demoBtn" class="subtle">Use Demo Data</button>
-          <span class="meta">Edit the <code>TEAM_PLAYERS</code> list in the code to choose who appears on the site. Region is auto-detected by the backend.</span>
+          <span class="meta">Edit <code>TEAM_PLAYERS</code> once in the code. Region is auto-detected by the backend.</span>
         </div>
         <div id="status" class="status"></div>
       </section>
@@ -202,59 +205,22 @@
     </div>
 
     <script>
-      // Put your players here once. The page will always load these cards.
-      // displayName is what shows on the page.
-      // name and tag are used for the backend API.
-      // Region is auto-detected by the backend.
       const TEAM_PLAYERS = [
-        { displayName: 'Ned', name: 'VoicelessV', tag: 'daun' },
-        { displayName: 'Rok', name: 'Knightly', tag: 'Blawg' },
-        { displayName: '0v', name: '0visman', tag: 'ptmp' },
-        { displayName: 'Ogl', name: 'OglukasM', tag: 'RAWRR' }
+        { displayName: 'TenZ', name: 'TenZ', tag: 'NA1' },
+        { displayName: 'zekken', name: 'zekken', tag: 'NA1' },
+        { displayName: 'aspas', name: 'aspas', tag: 'BR1' }
       ];
 
-      // Change this to your real Vercel backend URL.
-      const API_BASE = 'https://stattracker.vercel.app/';
-
-      const demoPlayers = [
-        {
-          displayName: 'TenZ',
-          riotId: 'TenZ#NA1',
-          seasonLabel: 'Current Act',
-          kd: 1.31,
-          kda: '241 / 184 / 59',
-          hs: 31,
-          firstKills: 42,
-          firstDeaths: 21,
-          agents: ['Jett', 'Reyna', 'Yoru']
-        },
-        {
-          displayName: 'zekken',
-          riotId: 'zekken#NA1',
-          seasonLabel: 'Current Act',
-          kd: 1.22,
-          kda: '228 / 187 / 81',
-          hs: 28,
-          firstKills: 38,
-          firstDeaths: 25,
-          agents: ['Raze', 'Jett', 'Neon']
-        },
-        {
-          displayName: 'aspas',
-          riotId: 'aspas#BR1',
-          seasonLabel: 'Current Act',
-          kd: 1.27,
-          kda: '233 / 183 / 52',
-          hs: 34,
-          firstKills: 47,
-          firstDeaths: 20,
-          agents: ['Jett', 'Raze', 'Chamber']
-        }
-      ];
+      const API_BASE = 'https://YOUR-VERCEL-PROJECT.vercel.app';
 
       const teamGrid = document.getElementById('teamGrid');
       const summary = document.getElementById('summary');
       const statusEl = document.getElementById('status');
+
+      function valueOrDash(value, suffix = '') {
+        if (value === null || value === undefined || value === '') return '-';
+        return `${value}${suffix}`;
+      }
 
       function renderPlayers(players) {
         teamGrid.innerHTML = players.map(player => `
@@ -264,33 +230,53 @@
                 <div class="player-name">${player.displayName || player.riotId}</div>
                 <div class="label">${player.seasonLabel || 'Current Act'} • ${player.riotId}</div>
               </div>
-              <div class="small-tag">Live Card</div>
+              <div class="small-tag">Live</div>
             </div>
 
             <div class="stats-grid">
               <div class="stat-box">
-                <div class="label">K/D</div>
-                <div class="stat-value">${player.kd ?? '-'}</div>
-              </div>
-              <div class="stat-box">
-                <div class="label">HS%</div>
-                <div class="stat-value">${player.hs ?? '-'}%</div>
+                <div class="label">Matches</div>
+                <div class="stat-value">${valueOrDash(player.matchesPlayed)}</div>
               </div>
               <div class="stat-box">
                 <div class="label">K / D / A</div>
-                <div class="stat-value" style="font-size:18px">${player.kda ?? '-'}</div>
+                <div class="stat-value" style="font-size:18px">${valueOrDash(player.kda)}</div>
                 <div class="stat-sub">Current act totals</div>
               </div>
               <div class="stat-box">
-                <div class="label">FK / FD</div>
-                <div class="stat-value" style="font-size:18px">${player.firstKills ?? 0} / ${player.firstDeaths ?? 0}</div>
-                <div class="stat-sub">Current act totals</div>
+                <div class="label">K/D</div>
+                <div class="stat-value">${valueOrDash(player.kd)}</div>
+              </div>
+              <div class="stat-box">
+                <div class="label">HS%</div>
+                <div class="stat-value">${valueOrDash(player.hs, '%')}</div>
+              </div>
+              <div class="stat-box">
+                <div class="label">ADR</div>
+                <div class="stat-value">${valueOrDash(player.adr)}</div>
+              </div>
+              <div class="stat-box">
+                <div class="label">First Kills</div>
+                <div class="stat-value">${valueOrDash(player.firstKills)}</div>
+              </div>
+              <div class="stat-box">
+                <div class="label">First Deaths</div>
+                <div class="stat-value">${valueOrDash(player.firstDeaths)}</div>
+              </div>
+              <div class="stat-box">
+                <div class="label">Multikills</div>
+                <div class="stat-value">${valueOrDash(player.multikills)}</div>
+                <div class="stat-sub">2K+ rounds combined</div>
               </div>
             </div>
 
             <div class="agents">
-              ${(player.agents || []).map(agent => `<span class="chip">${agent}</span>`).join('') || '<span class="chip">No agent data</span>'}
+              ${(player.agents || []).length
+                ? player.agents.map(agent => `<span class="chip">${agent}</span>`).join('')
+                : '<span class="chip">No agent data</span>'}
             </div>
+
+            ${player.error ? `<div class="error-box">${player.error}</div>` : ''}
           </article>
         `).join('');
       }
@@ -301,10 +287,16 @@
           return;
         }
 
-        const avgKd = (players.reduce((sum, p) => sum + Number(p.kd || 0), 0) / players.length).toFixed(2);
-        const avgHs = Math.round(players.reduce((sum, p) => sum + Number(p.hs || 0), 0) / players.length);
-        const bestHs = [...players].sort((a, b) => (b.hs || 0) - (a.hs || 0))[0];
-        const bestEntry = [...players].sort((a, b) => (b.firstKills || 0) - (a.firstKills || 0))[0];
+        const validPlayers = players.filter(p => !p.error);
+        if (!validPlayers.length) {
+          summary.innerHTML = '';
+          return;
+        }
+
+        const avgKd = (validPlayers.reduce((sum, p) => sum + Number(p.kd || 0), 0) / validPlayers.length).toFixed(2);
+        const avgHs = Math.round(validPlayers.reduce((sum, p) => sum + Number(p.hs || 0), 0) / validPlayers.length);
+        const avgAdr = Math.round(validPlayers.reduce((sum, p) => sum + Number(p.adr || 0), 0) / validPlayers.length);
+        const totalMatches = validPlayers.reduce((sum, p) => sum + Number(p.matchesPlayed || 0), 0);
 
         summary.innerHTML = `
           <div class="summary-card">
@@ -316,12 +308,12 @@
             <div class="summary-value">${avgHs}%</div>
           </div>
           <div class="summary-card">
-            <div class="summary-title">Best HS%</div>
-            <div class="summary-value">${bestHs.displayName || bestHs.riotId}</div>
+            <div class="summary-title">Team Average ADR</div>
+            <div class="summary-value">${avgAdr}</div>
           </div>
           <div class="summary-card">
-            <div class="summary-title">Best Entry</div>
-            <div class="summary-value">${bestEntry.displayName || bestEntry.riotId}</div>
+            <div class="summary-title">Matches Counted</div>
+            <div class="summary-value">${totalMatches}</div>
           </div>
         `;
       }
@@ -346,7 +338,7 @@
       }
 
       async function loadLiveStats() {
-        statusEl.textContent = 'Loading live act stats...';
+        statusEl.textContent = 'Loading live current-act stats...';
         try {
           const players = await fetchTeamStats();
           renderPlayers(players);
@@ -354,22 +346,14 @@
           statusEl.textContent = 'Loaded live stats for your saved players.';
         } catch (error) {
           console.error(error);
-          renderPlayers(demoPlayers);
-          renderSummary(demoPlayers);
-          statusEl.textContent = 'Could not load live stats. Showing demo data.';
+          teamGrid.innerHTML = '';
+          summary.innerHTML = '';
+          statusEl.textContent = 'Could not load live stats. Check API_BASE, Vercel, or your backend logs.';
         }
       }
 
       document.getElementById('loadBtn').addEventListener('click', loadLiveStats);
-      document.getElementById('demoBtn').addEventListener('click', () => {
-        renderPlayers(demoPlayers);
-        renderSummary(demoPlayers);
-        statusEl.textContent = 'Demo data loaded.';
-      });
-
-      renderPlayers(demoPlayers);
-      renderSummary(demoPlayers);
-      statusEl.textContent = 'Template ready. Replace TEAM_PLAYERS and API_BASE, then refresh. Region is auto-detected.';
+      loadLiveStats();
     </script>
   </body>
 </html>
