@@ -27,20 +27,106 @@ export default async function handler(req, res) {
       Accept: "application/json",
     };
 
+    const pickNumber = (obj, keys) => {
+      if (!obj) return 0;
+      for (const key of keys) {
+        const value = obj?.[key];
+        if (typeof value === "number") return value;
+        if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value))) {
+          return Number(value);
+        }
+      }
+      return 0;
+    };
+
+    const getAllPlayers = (match) => {
+      if (Array.isArray(match?.players?.all_players)) return match.players.all_players;
+      if (Array.isArray(match?.players)) return match.players;
+      return [];
+    };
+
+    const getSeasonId = (match) =>
+      match?.metadata?.season_id ||
+      match?.meta?.season_id ||
+      match?.season_id ||
+      null;
+
+    const getMe = (match, name, tag, canonicalName, canonicalTag) => {
+      const allPlayers = getAllPlayers(match);
+
+      return (
+        allPlayers.find(
+          (p) =>
+            String(p?.name || "").toLowerCase() === canonicalName.toLowerCase() &&
+            String(p?.tag || "").toLowerCase() === canonicalTag.toLowerCase()
+        ) ||
+        allPlayers.find(
+          (p) =>
+            String(p?.name || "").toLowerCase() === name.toLowerCase() &&
+            String(p?.tag || "").toLowerCase() === tag.toLowerCase()
+        ) ||
+        null
+      );
+    };
+
+    const getDamage = (player) => {
+      const stats = player?.stats || {};
+      const direct =
+        pickNumber(stats, ["damage_made", "damage", "total_damage", "damage_dealt"]) ||
+        pickNumber(player, ["damage_made", "damage", "total_damage", "damage_dealt"]);
+
+      if (direct > 0) return direct;
+
+      const damageEvents =
+        player?.damage_made ||
+        player?.damage ||
+        player?.damage_events ||
+        [];
+
+      if (Array.isArray(damageEvents)) {
+        return damageEvents.reduce(
+          (sum, entry) => sum + pickNumber(entry, ["damage", "damage_made", "value", "amount"]),
+          0
+        );
+      }
+
+      return 0;
+    };
+
+    const getMultikills = (player) => {
+      const stats = player?.stats || {};
+
+      const explicitTotal =
+        pickNumber(stats, ["multikills", "multi_kills", "multikill_rounds"]) ||
+        pickNumber(player, ["multikills", "multi_kills", "multikill_rounds"]);
+
+      if (explicitTotal > 0) return explicitTotal;
+
+      const twoKs = pickNumber(stats, ["double_kills", "doubleKills", "kills_2", "two_kills"]);
+      const threeKs = pickNumber(stats, ["triple_kills", "tripleKills", "kills_3", "three_kills"]);
+      const fourKs = pickNumber(stats, ["quadra_kills", "quadraKills", "kills_4", "four_kills"]);
+      const fiveKs = pickNumber(stats, ["penta_kills", "pentaKills", "kills_5", "five_kills"]);
+
+      return twoKs + threeKs + fourKs + fiveKs;
+    };
+
     const results = [];
 
     for (const entry of players) {
-      const [name, tag] = (entry || "").split("#");
+      const [name, tag] = String(entry).split("#");
 
       if (!name || !tag) {
         results.push({
           riotId: entry,
-          seasonLabel: "Current Act",
+          seasonLabel: "Season 2026 // Act 2",
+          matchesPlayed: 0,
           kd: 0,
           kda: "0 / 0 / 0",
           hs: 0,
+          adr: 0,
           firstKills: 0,
           firstDeaths: 0,
+          multikills: 0,
           agents: [],
           error: "Invalid Riot ID format",
         });
@@ -48,6 +134,7 @@ export default async function handler(req, res) {
       }
 
       try {
+        // 1) Account lookup for canonical Riot ID + auto region detection
         const accountRes = await fetch(
           `https://api.henrikdev.xyz/valorant/v2/account/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
           { headers }
@@ -57,12 +144,15 @@ export default async function handler(req, res) {
           const errorText = await accountRes.text();
           results.push({
             riotId: `${name}#${tag}`,
-            seasonLabel: "Current Act",
+            seasonLabel: "Season 2026 // Act 2",
+            matchesPlayed: 0,
             kd: 0,
             kda: "0 / 0 / 0",
             hs: 0,
+            adr: 0,
             firstKills: 0,
             firstDeaths: 0,
+            multikills: 0,
             agents: [],
             error: `Account lookup failed (${accountRes.status}): ${errorText}`,
           });
@@ -70,61 +160,68 @@ export default async function handler(req, res) {
         }
 
         const accountJson = await accountRes.json();
-
         const canonicalName = accountJson?.data?.name || name;
         const canonicalTag = accountJson?.data?.tag || tag;
-        const region =
-          (accountJson?.data?.region || accountJson?.data?.account_region || "eu").toLowerCase();
+        const region = String(accountJson?.data?.region || "eu").toLowerCase();
 
-        const matchesRes = await fetch(
-          `https://api.henrikdev.xyz/valorant/v4/matches/${encodeURIComponent(region)}/pc/${encodeURIComponent(canonicalName)}/${encodeURIComponent(canonicalTag)}?mode=competitive&size=10`,
-          { headers }
-        );
+        // 2) Pull pages of competitive matches until season_id changes
+        const collectedMatches = [];
+        let start = 0;
+        let currentSeasonId = null;
+        let keepGoing = true;
+        const MAX_PAGES = 6; // up to 60 matches
 
-        if (!matchesRes.ok) {
-          const errorText = await matchesRes.text();
+        for (let page = 0; page < MAX_PAGES && keepGoing; page += 1) {
+          const matchesRes = await fetch(
+            `https://api.henrikdev.xyz/valorant/v4/matches/${encodeURIComponent(region)}/pc/${encodeURIComponent(canonicalName)}/${encodeURIComponent(canonicalTag)}?mode=competitive&size=10&start=${start}`,
+            { headers }
+          );
+
+          if (!matchesRes.ok) {
+            break;
+          }
+
+          const matchesJson = await matchesRes.json();
+          const pageMatches = Array.isArray(matchesJson?.data) ? matchesJson.data : [];
+
+          if (!pageMatches.length) {
+            break;
+          }
+
+          for (const match of pageMatches) {
+            const seasonId = getSeasonId(match);
+
+            if (!currentSeasonId && seasonId) {
+              currentSeasonId = seasonId;
+            }
+
+            if (currentSeasonId && seasonId && seasonId !== currentSeasonId) {
+              keepGoing = false;
+              break;
+            }
+
+            collectedMatches.push(match);
+          }
+
+          start += 10;
+        }
+
+        if (!collectedMatches.length) {
           results.push({
             riotId: `${canonicalName}#${canonicalTag}`,
-            seasonLabel: "Current Act",
+            seasonLabel: "Season 2026 // Act 2",
+            matchesPlayed: 0,
             kd: 0,
             kda: "0 / 0 / 0",
             hs: 0,
+            adr: 0,
             firstKills: 0,
             firstDeaths: 0,
-            agents: [],
-            error: `Match request failed (${matchesRes.status}): ${errorText}`,
-          });
-          continue;
-        }
-
-        const matchesJson = await matchesRes.json();
-        const matches = Array.isArray(matchesJson?.data) ? matchesJson.data : [];
-
-        if (!matches.length) {
-          results.push({
-            riotId: `${canonicalName}#${canonicalTag}`,
-            seasonLabel: "Current Act",
-            kd: 0,
-            kda: "0 / 0 / 0",
-            hs: 0,
-            firstKills: 0,
-            firstDeaths: 0,
+            multikills: 0,
             agents: [],
           });
           continue;
         }
-
-        const currentSeasonId =
-          matches[0]?.metadata?.season_id ||
-          matches[0]?.meta?.season_id ||
-          null;
-
-        const actMatches = currentSeasonId
-          ? matches.filter((m) => {
-              const sid = m?.metadata?.season_id || m?.meta?.season_id || null;
-              return sid === currentSeasonId;
-            })
-          : matches;
 
         let totalKills = 0;
         let totalDeaths = 0;
@@ -132,81 +229,78 @@ export default async function handler(req, res) {
         let totalHeadshots = 0;
         let totalBodyshots = 0;
         let totalLegshots = 0;
+        let totalDamage = 0;
         let totalFirstKills = 0;
         let totalFirstDeaths = 0;
+        let totalMultikills = 0;
         const agentCounts = {};
 
-        for (const match of actMatches) {
-          const allPlayers =
-            match?.players?.all_players ||
-            match?.players ||
-            [];
+        let matchesPlayed = 0;
 
-          const me =
-            allPlayers.find(
-              (p) =>
-                String(p?.name || "").toLowerCase() === canonicalName.toLowerCase() &&
-                String(p?.tag || "").toLowerCase() === canonicalTag.toLowerCase()
-            ) ||
-            allPlayers.find(
-              (p) =>
-                String(p?.name || "").toLowerCase() === name.toLowerCase() &&
-                String(p?.tag || "").toLowerCase() === tag.toLowerCase()
-            );
-
+        for (const match of collectedMatches) {
+          const me = getMe(match, name, tag, canonicalName, canonicalTag);
           if (!me) continue;
 
           const stats = me?.stats || {};
 
-          totalKills += Number(stats.kills || 0);
-          totalDeaths += Number(stats.deaths || 0);
-          totalAssists += Number(stats.assists || 0);
-          totalHeadshots += Number(stats.headshots || 0);
-          totalBodyshots += Number(stats.bodyshots || 0);
-          totalLegshots += Number(stats.legshots || 0);
+          totalKills += pickNumber(stats, ["kills"]);
+          totalDeaths += pickNumber(stats, ["deaths"]);
+          totalAssists += pickNumber(stats, ["assists"]);
 
-          totalFirstKills += Number(stats.firstkills ?? stats.first_kills ?? 0);
-          totalFirstDeaths += Number(stats.firstdeaths ?? stats.first_deaths ?? 0);
+          totalHeadshots += pickNumber(stats, ["headshots", "hs"]);
+          totalBodyshots += pickNumber(stats, ["bodyshots", "body_shots"]);
+          totalLegshots += pickNumber(stats, ["legshots", "leg_shots"]);
+
+          totalDamage += getDamage(me);
+
+          totalFirstKills += pickNumber(stats, ["firstkills", "first_kills"]);
+          totalFirstDeaths += pickNumber(stats, ["firstdeaths", "first_deaths"]);
+
+          totalMultikills += getMultikills(me);
 
           const agent = me?.character || me?.agent?.name || null;
           if (agent) {
             agentCounts[agent] = (agentCounts[agent] || 0) + 1;
           }
+
+          matchesPlayed += 1;
         }
 
         const totalShots = totalHeadshots + totalBodyshots + totalLegshots;
-        const hs =
-          totalShots > 0 ? Math.round((totalHeadshots / totalShots) * 100) : 0;
-
-        const kd =
-          totalDeaths > 0
-            ? Number((totalKills / totalDeaths).toFixed(2))
-            : Number(totalKills.toFixed(2));
+        const hs = totalShots > 0 ? Math.round((totalHeadshots / totalShots) * 100) : 0;
+        const kd = totalDeaths > 0 ? Number((totalKills / totalDeaths).toFixed(2)) : Number(totalKills.toFixed(2));
+        const adr = matchesPlayed > 0 ? Math.round(totalDamage / matchesPlayed) : 0;
 
         const agents = Object.entries(agentCounts)
           .sort((a, b) => b[1] - a[1])
           .map(([agent]) => agent)
-          .slice(0, 3);
+          .slice(0, 5);
 
         results.push({
           riotId: `${canonicalName}#${canonicalTag}`,
-          seasonLabel: "Current Act",
+          seasonLabel: "Season 2026 // Act 2",
+          matchesPlayed,
           kd,
           kda: `${totalKills} / ${totalDeaths} / ${totalAssists}`,
           hs,
+          adr,
           firstKills: totalFirstKills,
           firstDeaths: totalFirstDeaths,
+          multikills: totalMultikills,
           agents,
         });
       } catch (playerError) {
         results.push({
           riotId: `${name}#${tag}`,
-          seasonLabel: "Current Act",
+          seasonLabel: "Season 2026 // Act 2",
+          matchesPlayed: 0,
           kd: 0,
           kda: "0 / 0 / 0",
           hs: 0,
+          adr: 0,
           firstKills: 0,
           firstDeaths: 0,
+          multikills: 0,
           agents: [],
           error: String(playerError),
         });
