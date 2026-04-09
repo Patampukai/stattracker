@@ -297,25 +297,6 @@
         const avgHs = Math.round(validPlayers.reduce((sum, p) => sum + Number(p.hs || 0), 0) / validPlayers.length);
         const avgAdr = Math.round(validPlayers.reduce((sum, p) => sum + Number(p.adr || 0), 0) / validPlayers.length);
         const totalMatches = validPlayers.reduce((sum, p) => sum + Number(p.matchesPlayed || 0), 0);
-
-        summary.innerHTML = `
-          <div class="summary-card">
-            <div class="summary-title">Team Average K/D</div>
-            <div class="summary-value">${avgKd}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Team Average HS%</div>
-            <div class="summary-value">${avgHs}%</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Team Average ADR</div>
-            <div class="summary-value">${avgAdr}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Matches Counted</div>
-            <div class="summary-value">${totalMatches}</div>
-          </div>
-        `;
       }
 
       async function fetchTeamStats() {
