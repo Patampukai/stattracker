@@ -1,373 +1,215 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Valorant Team Act Stats</title>
-    <style>
-      :root {
-        --bg: #0b1020;
-        --panel: #121a30;
-        --panel-2: #192341;
-        --text: #eef3ff;
-        --muted: #98a7d1;
-        --accent: #ff4655;
-        --border: rgba(255,255,255,0.08);
-      }
+function parsePlayer(raw) {
+  const trimmed = String(raw || '').trim();
+  const [idPart, regionPart] = trimmed.split('@');
+  const [name, tag] = (idPart || '').split('#');
+  return {
+    raw: trimmed,
+    name: (name || '').trim(),
+    tag: (tag || '').trim(),
+    region: (regionPart || 'eu').trim().toLowerCase(),
+  };
+}
 
-      * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        font-family: Inter, system-ui, Arial, sans-serif;
-        background: linear-gradient(180deg, #09101d 0%, #0d1428 100%);
-        color: var(--text);
-      }
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
 
-      .wrap {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 32px 20px 48px;
-      }
+function getPlayerFromMatch(match, name, tag) {
+  const players = match?.players?.all_players || match?.players || [];
+  return players.find((p) =>
+    String(p?.name || '').toLowerCase() === String(name).toLowerCase() &&
+    String(p?.tag || '').toLowerCase() === String(tag).toLowerCase()
+  );
+}
 
-      .hero {
-        display: flex;
-        justify-content: space-between;
-        align-items: end;
-        gap: 20px;
-        margin-bottom: 24px;
-      }
+function getMatchSummary(match, me) {
+  const stats = me?.stats || {};
+  const rounds = safeNumber(match?.metadata?.rounds_played || match?.metadata?.rounds || 0, 0);
+  const headshots = safeNumber(stats.headshots);
+  const bodyshots = safeNumber(stats.bodyshots);
+  const legshots = safeNumber(stats.legshots);
+  const totalShots = headshots + bodyshots + legshots;
+  const hs = totalShots > 0 ? Math.round((headshots / totalShots) * 100) : 0;
 
-      h1 { margin: 0 0 8px; font-size: 38px; }
-      p { margin: 0; color: var(--muted); }
+  let teamWon = false;
+  const team = String(me?.team || '').toLowerCase();
+  const teams = match?.teams;
+  if (teams?.red?.has_won != null || teams?.blue?.has_won != null) {
+    teamWon = team === 'red' ? !!teams.red.has_won : !!teams.blue?.has_won;
+  } else if (typeof match?.won === 'boolean') {
+    teamWon = match.won;
+  }
 
-      .panel {
-        background: rgba(18,26,48,0.92);
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        padding: 20px;
-        box-shadow: 0 10px 35px rgba(0,0,0,0.25);
-      }
+  return {
+    map: match?.metadata?.map || match?.map?.name || 'Unknown map',
+    agent: me?.character || me?.agent || 'Unknown',
+    result: teamWon ? 'W' : 'L',
+    score: `${safeNumber(match?.teams?.red?.rounds_won, 0)}-${safeNumber(match?.teams?.blue?.rounds_won, 0)}`,
+    startedAt: match?.metadata?.game_start_patched || match?.metadata?.started_at || match?.metadata?.started_at_raw || null,
+    kda: `${safeNumber(stats.kills)} / ${safeNumber(stats.deaths)} / ${safeNumber(stats.assists)}`,
+    hs,
+    firstKills: safeNumber(stats.firstkills ?? stats.first_kills),
+    firstDeaths: safeNumber(stats.firstdeaths ?? stats.first_deaths),
+    scoreValue: safeNumber(stats.score) || (rounds > 0 ? Math.round(safeNumber(stats.damage_made) / rounds) : 0),
+    kills: safeNumber(stats.kills),
+    deaths: safeNumber(stats.deaths),
+    assists: safeNumber(stats.assists),
+    headshots,
+    bodyshots,
+    legshots,
+  };
+}
 
-      .toolbar {
-        display: flex;
-        gap: 12px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
+async function fetchJson(url, headers) {
+  const res = await fetch(url, { headers });
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) {
+    const message = data?.errors?.[0]?.message || data?.message || data?.error || `HTTP ${res.status}`;
+    throw new Error(message);
+  }
+  return data;
+}
 
-      button {
-        border: 0;
-        border-radius: 12px;
-        padding: 13px 18px;
-        font-weight: 700;
-        background: var(--accent);
-        color: white;
-        cursor: pointer;
-      }
+async function buildPlayerSummary(player, headers, matchCount) {
+  if (!player.name || !player.tag) {
+    throw new Error(`Invalid player format: ${player.raw}`);
+  }
 
-      .subtle {
-        background: transparent;
-        border: 1px solid var(--border);
-        color: var(--text);
-      }
+  const encodedName = encodeURIComponent(player.name);
+  const encodedTag = encodeURIComponent(player.tag);
+  const region = encodeURIComponent(player.region);
 
-      .meta {
-        color: var(--muted);
-        font-size: 14px;
-      }
+  const accountPromise = fetchJson(
+    `https://api.henrikdev.xyz/valorant/v2/account/${encodedName}/${encodedTag}`,
+    headers
+  );
 
-      .status {
-        margin-top: 14px;
-        min-height: 22px;
-        color: var(--muted);
-      }
+  const matchesPromise = fetchJson(
+    `https://api.henrikdev.xyz/valorant/v3/matches/${region}/${encodedName}/${encodedTag}?size=${encodeURIComponent(matchCount)}`,
+    headers
+  );
 
-      .summary {
-        margin-top: 22px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 16px;
-      }
+  const mmrPromise = fetchJson(
+    `https://api.henrikdev.xyz/valorant/v3/mmr/${region}/pc/${encodedName}/${encodedTag}`,
+    headers
+  ).catch(() => null);
 
-      .summary-card,
-      .player-card {
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 18px;
-        padding: 18px;
-      }
+  const [accountJson, matchesJson, mmrJson] = await Promise.all([accountPromise, matchesPromise, mmrPromise]);
 
-      .summary-title,
-      .label {
-        color: var(--muted);
-        font-size: 13px;
-        margin-bottom: 8px;
-      }
+  const account = accountJson?.data || {};
+  const matches = Array.isArray(matchesJson?.data) ? matchesJson.data : [];
 
-      .summary-value {
-        font-size: 28px;
-        font-weight: 800;
-      }
+  let totalKills = 0;
+  let totalDeaths = 0;
+  let totalAssists = 0;
+  let totalHeadshots = 0;
+  let totalBodyshots = 0;
+  let totalLegshots = 0;
+  let totalFirstKills = 0;
+  let totalFirstDeaths = 0;
+  let totalScore = 0;
+  let countedMatches = 0;
+  const agentCounts = {};
+  const recentMatches = [];
 
-      .team-grid {
-        margin-top: 22px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
-      }
+  for (const match of matches) {
+    const me = getPlayerFromMatch(match, player.name, player.tag);
+    if (!me) continue;
 
-      .player-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: start;
-        margin-bottom: 14px;
-      }
+    const summary = getMatchSummary(match, me);
+    recentMatches.push(summary);
 
-      .player-name {
-        font-size: 22px;
-        font-weight: 800;
-      }
+    totalKills += summary.kills;
+    totalDeaths += summary.deaths;
+    totalAssists += summary.assists;
+    totalHeadshots += summary.headshots;
+    totalBodyshots += summary.bodyshots;
+    totalLegshots += summary.legshots;
+    totalFirstKills += summary.firstKills;
+    totalFirstDeaths += summary.firstDeaths;
+    totalScore += summary.scoreValue;
+    countedMatches += 1;
 
-      .small-tag {
-        font-size: 12px;
-        color: var(--muted);
-        background: rgba(255,255,255,0.05);
-        padding: 6px 8px;
-        border-radius: 999px;
-      }
+    if (summary.agent) {
+      agentCounts[summary.agent] = (agentCounts[summary.agent] || 0) + 1;
+    }
+  }
 
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-      }
+  const totalShots = totalHeadshots + totalBodyshots + totalLegshots;
+  const hs = totalShots > 0 ? Math.round((totalHeadshots / totalShots) * 100) : 0;
+  const kd = totalDeaths > 0 ? Number((totalKills / totalDeaths).toFixed(2)) : Number(totalKills.toFixed(2));
+  const avgScore = countedMatches > 0 ? Math.round(totalScore / countedMatches) : 0;
+  const agents = Object.entries(agentCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([agent]) => agent)
+    .slice(0, 3);
 
-      .stat-box {
-        background: var(--panel-2);
-        border-radius: 14px;
-        padding: 12px;
-      }
+  return {
+    riotId: `${account?.name || player.name}#${account?.tag || player.tag}`,
+    region: account?.region || player.region,
+    accountLevel: account?.account_level ?? null,
+    kd,
+    hs,
+    avgScore,
+    firstKills: totalFirstKills,
+    firstDeaths: totalFirstDeaths,
+    kda: `${totalKills} / ${totalDeaths} / ${totalAssists}`,
+    agents,
+    rank: mmrJson?.data?.current?.tier?.name || null,
+    rr: mmrJson?.data?.current?.rr ?? null,
+    recentMatches,
+  };
+}
 
-      .stat-value {
-        font-size: 22px;
-        font-weight: 800;
-      }
+export default async function handler(req, res) {
+  if (!process.env.HENRIK_API_KEY) {
+    return res.status(500).json({ error: 'Missing HENRIK_API_KEY environment variable.' });
+  }
 
-      .stat-sub {
-        font-size: 12px;
-        color: var(--muted);
-        margin-top: 4px;
-      }
+  try {
+    const rawPlayers = String(req.query.players || '').trim();
+    const matchCount = Math.min(Math.max(safeNumber(req.query.matches, 5), 1), 10);
 
-      .agents {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 14px;
-      }
+    if (!rawPlayers) {
+      return res.status(400).json({ error: 'Missing players query parameter.' });
+    }
 
-      .chip {
-        padding: 8px 10px;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.06);
-        font-size: 13px;
-      }
+    const players = rawPlayers.split(',').map(parsePlayer).filter((p) => p.name && p.tag);
+    if (!players.length) {
+      return res.status(400).json({ error: 'No valid players found. Use Name#Tag@region.' });
+    }
 
-      @media (max-width: 700px) {
-        .hero { flex-direction: column; align-items: start; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <section class="hero">
-        <div>
-          <h1>Valorant Team Act Stats</h1>
-          <p>Fixed player cards with live stats from your backend. No typing Riot IDs on the page.</p>
-        </div>
-      </section>
+    const headers = {
+      Authorization: process.env.HENRIK_API_KEY,
+      Accept: 'application/json',
+    };
 
-      <section class="panel">
-        <div class="toolbar">
-          <button id="loadBtn">Refresh Team Stats</button>
-          <button id="demoBtn" class="subtle">Use Demo Data</button>
-          <span class="meta">Edit the <code>TEAM_PLAYERS</code> list in the code to choose who appears on the site.</span>
-        </div>
-        <div id="status" class="status"></div>
-      </section>
+    const settled = await Promise.allSettled(players.map((player) => buildPlayerSummary(player, headers, matchCount)));
 
-      <section id="summary" class="summary"></section>
-      <section id="teamGrid" class="team-grid"></section>
-    </div>
+    const good = [];
+    const errors = [];
+    settled.forEach((item, index) => {
+      if (item.status === 'fulfilled') good.push(item.value);
+      else errors.push({ player: players[index].raw, error: item.reason?.message || 'Unknown error' });
+    });
 
-    <script>
-      // Put your players here once. The page will always load these cards.
-      // displayName is what shows on the page.
-      // name, tag, and region are used for the backend API.
-      const TEAM_PLAYERS = [
-        { displayName: 'TenZ', name: 'TenZ', tag: 'NA1', region: 'na' },
-        { displayName: 'zekken', name: 'zekken', tag: 'NA1', region: 'na' },
-        { displayName: 'aspas', name: 'aspas', tag: 'BR1', region: 'na' }
-      ];
+    if (!good.length) {
+      return res.status(502).json({ error: 'Could not load any player stats.', errors });
+    }
 
-      // Change this to your real Vercel backend URL.
-      const API_BASE = 'https://YOUR-VERCEL-PROJECT.vercel.app';
-
-      const demoPlayers = [
-        {
-          displayName: 'TenZ',
-          riotId: 'TenZ#NA1',
-          seasonLabel: 'Current Act',
-          kd: 1.31,
-          kda: '241 / 184 / 59',
-          hs: 31,
-          firstKills: 42,
-          firstDeaths: 21,
-          agents: ['Jett', 'Reyna', 'Yoru']
-        },
-        {
-          displayName: 'zekken',
-          riotId: 'zekken#NA1',
-          seasonLabel: 'Current Act',
-          kd: 1.22,
-          kda: '228 / 187 / 81',
-          hs: 28,
-          firstKills: 38,
-          firstDeaths: 25,
-          agents: ['Raze', 'Jett', 'Neon']
-        },
-        {
-          displayName: 'aspas',
-          riotId: 'aspas#BR1',
-          seasonLabel: 'Current Act',
-          kd: 1.27,
-          kda: '233 / 183 / 52',
-          hs: 34,
-          firstKills: 47,
-          firstDeaths: 20,
-          agents: ['Jett', 'Raze', 'Chamber']
-        }
-      ];
-
-      const teamGrid = document.getElementById('teamGrid');
-      const summary = document.getElementById('summary');
-      const statusEl = document.getElementById('status');
-
-      function renderPlayers(players) {
-        teamGrid.innerHTML = players.map(player => `
-          <article class="player-card">
-            <div class="player-header">
-              <div>
-                <div class="player-name">${player.displayName || player.riotId}</div>
-                <div class="label">${player.seasonLabel || 'Current Act'} • ${player.riotId}</div>
-              </div>
-              <div class="small-tag">Live Card</div>
-            </div>
-
-            <div class="stats-grid">
-              <div class="stat-box">
-                <div class="label">K/D</div>
-                <div class="stat-value">${player.kd ?? '-'}</div>
-              </div>
-              <div class="stat-box">
-                <div class="label">HS%</div>
-                <div class="stat-value">${player.hs ?? '-'}%</div>
-              </div>
-              <div class="stat-box">
-                <div class="label">K / D / A</div>
-                <div class="stat-value" style="font-size:18px">${player.kda ?? '-'}</div>
-                <div class="stat-sub">Current act totals</div>
-              </div>
-              <div class="stat-box">
-                <div class="label">FK / FD</div>
-                <div class="stat-value" style="font-size:18px">${player.firstKills ?? 0} / ${player.firstDeaths ?? 0}</div>
-                <div class="stat-sub">Current act totals</div>
-              </div>
-            </div>
-
-            <div class="agents">
-              ${(player.agents || []).map(agent => `<span class="chip">${agent}</span>`).join('') || '<span class="chip">No agent data</span>'}
-            </div>
-          </article>
-        `).join('');
-      }
-
-      function renderSummary(players) {
-        if (!players.length) {
-          summary.innerHTML = '';
-          return;
-        }
-
-        const avgKd = (players.reduce((sum, p) => sum + Number(p.kd || 0), 0) / players.length).toFixed(2);
-        const avgHs = Math.round(players.reduce((sum, p) => sum + Number(p.hs || 0), 0) / players.length);
-        const bestHs = [...players].sort((a, b) => (b.hs || 0) - (a.hs || 0))[0];
-        const bestEntry = [...players].sort((a, b) => (b.firstKills || 0) - (a.firstKills || 0))[0];
-
-        summary.innerHTML = `
-          <div class="summary-card">
-            <div class="summary-title">Team Average K/D</div>
-            <div class="summary-value">${avgKd}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Team Average HS%</div>
-            <div class="summary-value">${avgHs}%</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Best HS%</div>
-            <div class="summary-value">${bestHs.displayName || bestHs.riotId}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-title">Best Entry</div>
-            <div class="summary-value">${bestEntry.displayName || bestEntry.riotId}</div>
-          </div>
-        `;
-      }
-
-      async function fetchTeamStats() {
-        const query = TEAM_PLAYERS
-          .map(p => `${p.name}#${p.tag}@${p.region}`)
-          .join(',');
-
-        const res = await fetch(`${API_BASE}/api/team?players=${encodeURIComponent(query)}`);
-        if (!res.ok) {
-          throw new Error(`API request failed: ${res.status}`);
-        }
-
-        const data = await res.json();
-
-        return data.map((item, index) => ({
-          ...item,
-          displayName: TEAM_PLAYERS[index]?.displayName || item.riotId,
-          seasonLabel: item.seasonLabel || 'Current Act'
-        }));
-      }
-
-      async function loadLiveStats() {
-        statusEl.textContent = 'Loading live act stats...';
-        try {
-          const players = await fetchTeamStats();
-          renderPlayers(players);
-          renderSummary(players);
-          statusEl.textContent = 'Loaded live stats for your saved players.';
-        } catch (error) {
-          console.error(error);
-          renderPlayers(demoPlayers);
-          renderSummary(demoPlayers);
-          statusEl.textContent = 'Could not load live stats. Showing demo data.';
-        }
-      }
-
-      document.getElementById('loadBtn').addEventListener('click', loadLiveStats);
-      document.getElementById('demoBtn').addEventListener('click', () => {
-        renderPlayers(demoPlayers);
-        renderSummary(demoPlayers);
-        statusEl.textContent = 'Demo data loaded.';
-      });
-
-      renderPlayers(demoPlayers);
-      renderSummary(demoPlayers);
-      statusEl.textContent = 'Template ready. Replace TEAM_PLAYERS and API_BASE, then refresh.';
-    </script>
-  </body>
-</html>
+    return res.status(200).json({
+      generatedAt: new Date().toISOString(),
+      players: good,
+      errors,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message || 'Unexpected server error.' });
+  }
+}
