@@ -430,7 +430,7 @@ h1 {
 
 <script>
 const CONFIG = {
-  apiKey: "HDEV-fd28ff22-4db9-433f-95e1-37503825c67f",
+  apiKey: "PASTE_YOUR_HENRIK_API_KEY_HERE",
   teamName: "PATAMPUKAI",
   region: "eu",
   platform: "pc"
@@ -650,7 +650,7 @@ function aggregateMatches(matchDetails, teamMembers) {
       bucket.headshots += Number(stats.headshots || 0);
       bucket.bodyshots += Number(stats.bodyshots || 0);
       bucket.legshots += Number(stats.legshots || 0);
-      bucket.damage += Number(player.damage_made ?? sumRoundDamage(match, bucket.riotId) || 0);
+      bucket.damage += Number((player.damage_made ?? sumRoundDamage(match, bucket.riotId)) || 0);
       bucket.rounds += roundsPlayed;
       bucket.matches += 1;
 
