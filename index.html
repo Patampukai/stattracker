@@ -3,148 +3,863 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PTMP Stats</title>
+<title>PTMP Premier Stats</title>
 
 <style>
+:root {
+  --bg: #0b1020;
+  --panel: #121a30;
+  --panel-2: #18213b;
+  --text: #ffffff;
+  --muted: #9aa3b2;
+  --accent: #ff4655;
+  --border: rgba(255,255,255,0.08);
+  --shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+* { box-sizing: border-box; }
+
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #0b1020;
-  color: white;
+  font-family: Trebuchet MS, sans-serif;
+  background:
+    radial-gradient(circle at top, rgba(255,70,85,0.14), transparent 35%),
+    var(--bg);
+  color: var(--text);
 }
 
 .wrap {
-  max-width: 1200px;
-  margin: auto;
-  padding: 20px;
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 28px;
 }
 
 h1 {
-  margin-bottom: 20px;
+  margin: 0 0 8px;
+  font-size: 34px;
+  letter-spacing: 0.5px;
+}
+
+.note {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 22px;
+  line-height: 1.5;
+}
+
+.row-scroll {
+  padding-bottom: 8px;
 }
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 15px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
 }
 
 .card {
-  background: #121a30;
-  padding: 15px;
-  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(24, 33, 59, 0.78), rgba(18, 26, 48, 0.9)),
+    var(--bg-image, linear-gradient(180deg, var(--panel-2), var(--panel)));
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--border);
+  padding: 12px;
+  border-radius: 16px;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  min-height: 280px;
+
+}
+
+.card::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  background: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  filter: blur(10px);
+  transform: scale(1.08);
+  opacity: 0.55;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.card::after {
+  content: "Open Tracker ↗";
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 3;
+}
+
+.card > * {
+  position: relative;
+  z-index: 2;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255,70,85,0.35);
+}
+
+.card:hover::after {
+  opacity: 1;
+}
+
+.card:active {
+  transform: translateY(-1px);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.rank-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex: 0 0 42px;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.18);
 }
 
 .name {
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 72px;
 }
 
 .sub {
   font-size: 12px;
-  color: #aaa;
-  margin-bottom: 10px;
+  color: var(--muted);
+  margin-top: 3px;
 }
 
-.rank {
-  color: #ff4655;
-  margin-bottom: 10px;
+.rank-line {
+  margin: 8px 0 14px;
+  color: #ffd7da;
+  font-weight: 700;
+  font-size: 14px;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
 }
 
 .stats {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+  gap: 8px;
+  
 }
 
 .stat {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
   text-align: center;
+  padding: 8px 6px;
+  backdrop-filter: blur(3px);
 }
 
 .value {
-  font-weight: bold;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 4px;
 }
 
 .label {
-  font-size: 11px;
-  color: #aaa;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
 }
 
-.error {
-  color: red;
+.agents-box {
+  margin-top: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 12px;
+  backdrop-filter: blur(3px);
+}
+
+.agents-title {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.agents-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.nav-btn {
+  text-decoration: none;
+  background: linear-gradient(135deg, #ff4655, #ff2d55);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 6px 16px rgba(255,70,85,0.35);
+}
+
+.nav-btn:hover {
+  transform: translateY(-2px);
+}
+.rank-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 64px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.rank-icon img {
+  width: 70%;
+  height: 80%;
+  object-fit: contain;
+}
+.agent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.08);
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.agent-item img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+
+.agent-item span {
+  font-size: 12px;
+}
+.map-timeline {
+  margin-bottom: 18px;
+  padding: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: blur(4px);
+}
+
+/* maps row */
+.maps {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  margin-bottom: 6px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.maps span {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+}
+
+/* completed maps */
+.maps .done {
+  text-decoration: line-through;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+/* current map */
+.maps .current {
+  background: linear-gradient(135deg, #ff4655, #ff2d55);
+  color: white;
+}
+
+/* dates row */
+.dates {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.team-summary {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.team-stat {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 14px;
+  padding: 14px;
+  text-align: center;
+  backdrop-filter: blur(4px);
+}
+
+.team-value {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #ff6a7a;
+}
+
+.team-label {
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.5px;
+}
+.agent-pill {
+  font-size: 12px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.status-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
+
+.status-banner.error {
+  border-color: rgba(255, 70, 85, 0.35);
+  color: #ffd7da;
+}
+
+.status-banner.loading {
+  border-color: rgba(255,255,255,0.15);
+}
+
+@media (max-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>
 </head>
 
 <body>
 <div class="wrap">
-  <h1>PATAMPUKAI Stats</h1>
-  <div id="grid" class="grid"></div>
+  <h1>✨PATAMPUKAI Stats✨
+  <a href="act1stats.html" class="nav-btn">S26:ACT1 STATS</a>
+  </h1>
+  <div class="note">
+    Season 26 Act 2 Premier
+  </div>
+ <div class="map-timeline">
+    <div class="maps">
+      <span class="done">HAVEN</span>
+      <span class="done">FRACTURE</span>
+      <span class="done">LOTUS</span>
+      <span class="current">SPLIT</span>
+      <span>BIND</span>
+      <span>BREEZE</span>
+    </div>
+
+    <div class="dates">
+      <span>Mar 21</span>
+      <span>Mar 28</span>
+      <span>Apr 4</span>
+      <span>Apr 11</span>
+      <span>Apr 18</span>
+      <span>Apr 25</span>
+    </div>
+  </div>
+  <div id="statusBanner" class="status-banner">Loading live Premier stats...</div>
+  <div class="row-scroll">
+    <div id="grid" class="grid"></div>
+  </div>
+  <div class="team-summary">
+  <div class="team-stat">
+    <div id="teamAvgHs" class="team-value">--</div>
+    <div class="team-label">AVG HS%</div>
+  </div>
+
+  <div class="team-stat">
+    <div id="teamAvgKd" class="team-value">--</div>
+    <div class="team-label">AVG K/D</div>
+  </div>
+
+  <div class="team-stat">
+    <div id="teamAvgAdr" class="team-value">--</div>
+    <div class="team-label">AVG ADR</div>
+  </div>
+</div>
 </div>
 
 <script>
-const PLAYERS = [
-  "OglukasM#RAWRR",
-  "VoicelessV#daun",
-  "Knightly#Blawg",
-  "0visman#PTMP",
-  "xSugar#Ckrs",
-  "M O O C H I#whif"
-];
+const CONFIG = {
+  apiKey: "HDEV-fd28ff22-4db9-433f-95e1-37503825c67f",
+  teamName: "PATAMPUKAI",
+  region: "eu",
+  platform: "pc"
+};
+const BACKGROUNDS = {
+  "OglukasM": "omen.png",
+  "VoicelessV": "fade.png",
+  "Knightly": "waylay.png",
+  "0visman": "killjoy.png",
+  "xSugar": "skye.png",
+  "M O O C H I": "jett.png",
+};
+const AGENT_ICONS = {
+  "Astra": "agents/astra.png",
+  "Brimstone": "agents/brimstone.png",
+  "Breach": "agents/breach.png",
+  "Chamber": "agents/chamber.png",
+  "Clove": "agents/clove.png",
+  "Cypher": "agents/cypher.png",
+  "Deadlock": "agents/deadlock.png",
+  "Fade": "agents/fade.png",
+  "Gekko": "agents/gekko.png",
+  "Harbor": "agents/harbor.png",
+  "Iso": "agents/iso.png",
+  "Jett": "agents/jett.png",
+  "Kayo": "agents/kayo.png",
+  "Killjoy": "agents/killjoy.png",
+  "Miks": "agents/miks.png",
+  "Neon": "agents/neon.png",
+  "Omen": "agents/omen.png",
+  "Phoenix": "agents/phoenix.png",
+  "Raze": "agents/raze.png",
+  "Reyna": "agents/reyna.png",
+  "Sage": "agents/sage.png",
+  "Skye": "agents/skye.png",
+  "Sova": "agents/sova.png",
+  "Tejo": "agents/tejo.png",
+  "Veto": "agents/veto.png",
+  "Viper": "agents/viper.png",
+  "Vyse": "agents/vyse.png",
+  "Waylay": "agents/waylay.png",
+  "Yoru": "agents/yoru.png"
+};
 
-const API = "https://stattracker.vercel.app/api/team";
+const grid = document.getElementById("grid");
+const statusBanner = document.getElementById("statusBanner");
+const teamAvgHs = document.getElementById("teamAvgHs");
+const teamAvgKd = document.getElementById("teamAvgKd");
+const teamAvgAdr = document.getElementById("teamAvgAdr");
 
-async function loadStats() {
-  const grid = document.getElementById("grid");
+function setStatus(message, type = "") {
+  statusBanner.className = `status-banner${type ? ` ${type}` : ""}`;
+  statusBanner.innerHTML = message;
+}
 
+function trackerUrl(riotId) {
+  return "https://tracker.gg/valorant/profile/riot/" + encodeURIComponent(riotId) + "/overview";
+}
+
+function rankMeta(rank) {
+  const r = String(rank || "").toLowerCase();
+  if (r.includes("radiant")) return { cls: "rank-radiant", icon: "ranks/radiant.png" };
+  if (r.includes("immortal 1")) return { cls: "rank-immortal1", icon: "ranks/immortal1.png" };
+  if (r.includes("immortal 2")) return { cls: "rank-immortal2", icon: "ranks/immortal2.png" };
+  if (r.includes("immortal 3")) return { cls: "rank-immortal3", icon: "ranks/immortal2.png" };
+  if (r.includes("ascendant 1")) return { cls: "rank-ascendant1", icon: "ranks/ascendant1.png" };
+  if (r.includes("ascendant 2")) return { cls: "rank-ascendant2", icon: "ranks/ascendant2.png" };
+  if (r.includes("ascendant 3")) return { cls: "rank-ascendant3", icon: "ranks/ascendant3.png" };
+  if (r.includes("diamond 1")) return { cls: "rank-diamond1", icon: "ranks/diamond1.png" };
+  if (r.includes("diamond 2")) return { cls: "rank-diamond2", icon: "ranks/diamond2.png" };
+  if (r.includes("diamond 3")) return { cls: "rank-diamond3", icon: "ranks/diamond3.png" };
+  if (r.includes("platinum 1")) return { cls: "rank-platinum1", icon: "ranks/plat1.png" };
+  if (r.includes("platinum 2")) return { cls: "rank-platinum2", icon: "ranks/plat2.png" };
+  if (r.includes("platinum 3")) return { cls: "rank-platinum3", icon: "ranks/plat3.png" };
+  if (r.includes("gold 1")) return { cls: "rank-gold1", icon: "ranks/gold1.png" };
+  if (r.includes("gold 2")) return { cls: "rank-gold2", icon: "ranks/gold2.png" };
+  if (r.includes("gold 3")) return { cls: "rank-gold3", icon: "ranks/gold3.png" };
+  if (r.includes("silver 1")) return { cls: "rank-silver1", icon: "ranks/silver1.png" };
+  if (r.includes("silver 2")) return { cls: "rank-silver2", icon: "ranks/silver2.png" };
+  if (r.includes("silver 3")) return { cls: "rank-silver3", icon: "ranks/silver3.png" };
+  return { cls: "rank-bronze", icon: "bronze.png" };
+}
+
+function formatNumber(value, digits = 2) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(digits) : "--";
+}
+
+function parseDisplayName(displayName) {
+  const [name, tag] = String(displayName || "").split("#");
+  return { name: name || "Unknown", tag: tag || "????" };
+}
+
+async function apiFetch(path, apiKey) {
+  const response = await fetch(`https://api.henrikdev.xyz${path}`, {
+    headers: {
+      Authorization: apiKey,
+      Accept: "application/json"
+    }
+  });
+
+  let data = null;
   try {
-    const res = await fetch(API + "?players=" + encodeURIComponent(PLAYERS.join(",")));
-    const data = await res.json();
+    data = await response.json();
+  } catch {
+    data = null;
+  }
 
-    grid.innerHTML = data.map(p => {
+  if (!response.ok) {
+    const message = data?.errors?.[0]?.message || data?.message || `HTTP ${response.status}`;
+    throw new Error(message);
+  }
 
-      if (p.error) {
-        return `<div class="card error">${p.riotId}<br>${p.error}</div>`;
-      }
+  return data;
+}
 
-      const [k, d, a] = (p.kda || "0/0/0").split("/").map(x => Number(x.trim()));
-      const kd = d > 0 ? (k / d).toFixed(2) : k.toFixed(2);
+async function findPremierTeam(config) {
+  const q = encodeURIComponent(config.teamName);
+  const result = await apiFetch(`/valorant/v1/premier/search?name=${q}`, config.apiKey);
+  const teams = Array.isArray(result.data) ? result.data : [];
+  const exact = teams.find(t => String(t.name || "").toLowerCase() === config.teamName.toLowerCase() && String(t.region || t.affinity || "").toLowerCase() === config.region.toLowerCase());
+  const byRegion = teams.find(t => String(t.region || t.affinity || "").toLowerCase() === config.region.toLowerCase());
+  const fallback = teams[0];
+  const team = exact || byRegion || fallback;
+  if (!team) throw new Error(`Could not find a Premier team called "${config.teamName}" in ${config.region.toUpperCase()}.`);
+  return team;
+}
 
-      return `
-        <div class="card">
-          <div class="name">${p.riotId}</div>
-          <div class="sub">${p.seasonLabel || "Tracker"}</div>
+function pickCurrentSeason(seasons) {
+  const now = Date.now();
+  const parsed = (Array.isArray(seasons) ? seasons : []).map(season => ({
+    ...season,
+    startsMs: Date.parse(season.starts_at),
+    endsMs: Date.parse(season.ends_at)
+  })).filter(season => Number.isFinite(season.startsMs) && Number.isFinite(season.endsMs));
 
-          <div class="rank">
-            ${p.rank || "Unranked"} • ${p.rr || 0} RR
+  const active = parsed.find(season => season.startsMs <= now && now <= season.endsMs);
+  if (active) return active;
+
+  const recent = parsed.filter(season => season.startsMs <= now).sort((a, b) => b.startsMs - a.startsMs)[0];
+  return recent || parsed.sort((a, b) => b.startsMs - a.startsMs)[0] || null;
+}
+
+function isWithinSeason(dateString, season) {
+  const ms = Date.parse(dateString);
+  if (!Number.isFinite(ms) || !season) return false;
+  return ms >= season.startsMs && ms <= season.endsMs;
+}
+
+function getMatchPlayer(match, displayName) {
+  const target = String(displayName || "").toLowerCase();
+  const players = Array.isArray(match?.data?.players)
+    ? match.data.players
+    : [
+        ...(match?.data?.players?.all_players || []),
+        ...(match?.data?.players?.red || []),
+        ...(match?.data?.players?.blue || [])
+      ];
+
+  return players.find(player => `${player.name}#${player.tag}`.toLowerCase() === target) || null;
+}
+
+function getAgentName(player) {
+  return player?.agent?.name || player?.character || "Unknown";
+}
+
+function sumRoundDamage(match, displayName) {
+  const target = String(displayName || "").toLowerCase();
+  const rounds = Array.isArray(match?.data?.rounds) ? match.data.rounds : [];
+  let total = 0;
+
+  for (const round of rounds) {
+    const roundPlayers = Array.isArray(round?.player_stats) ? round.player_stats : [];
+    const roundPlayer = roundPlayers.find(p => `${p.player_display_name || `${p.name || ""}#${p.tag || ""}`}`.toLowerCase() === target);
+    if (roundPlayer && Number.isFinite(Number(roundPlayer.damage))) {
+      total += Number(roundPlayer.damage);
+    }
+  }
+
+  return total;
+}
+
+function aggregateMatches(matchDetails, teamMembers) {
+  const statsByPlayer = new Map();
+  const teamDisplayNames = new Set(teamMembers.map(member => `${member.name}#${member.tag}`.toLowerCase()));
+
+  for (const member of teamMembers) {
+    const riotId = `${member.name}#${member.tag}`;
+    statsByPlayer.set(riotId.toLowerCase(), {
+      riotId,
+      rank: "Loading...",
+      rr: "--",
+      kills: 0,
+      deaths: 0,
+      assists: 0,
+      damage: 0,
+      rounds: 0,
+      headshots: 0,
+      bodyshots: 0,
+      legshots: 0,
+      agents: new Map(),
+      matches: 0
+    });
+  }
+
+  for (const match of matchDetails) {
+    const roundsPlayed = Number(match?.data?.metadata?.rounds_played || 0);
+
+    for (const [key, bucket] of statsByPlayer.entries()) {
+      const player = getMatchPlayer(match, bucket.riotId);
+      if (!player) continue;
+
+      const stats = player.stats || {};
+      bucket.kills += Number(stats.kills || 0);
+      bucket.deaths += Number(stats.deaths || 0);
+      bucket.assists += Number(stats.assists || 0);
+      bucket.headshots += Number(stats.headshots || 0);
+      bucket.bodyshots += Number(stats.bodyshots || 0);
+      bucket.legshots += Number(stats.legshots || 0);
+      bucket.damage += Number(player.damage_made ?? sumRoundDamage(match, bucket.riotId) || 0);
+      bucket.rounds += roundsPlayed;
+      bucket.matches += 1;
+
+      const agentName = getAgentName(player);
+      bucket.agents.set(agentName, (bucket.agents.get(agentName) || 0) + 1);
+    }
+  }
+
+  return Array.from(statsByPlayer.values()).map(bucket => {
+    const shots = bucket.headshots + bucket.bodyshots + bucket.legshots;
+    const kd = bucket.deaths > 0 ? bucket.kills / bucket.deaths : bucket.kills;
+    const adr = bucket.rounds > 0 ? bucket.damage / bucket.rounds : 0;
+    const hs = shots > 0 ? (bucket.headshots / shots) * 100 : 0;
+    const plusMinus = bucket.kills - bucket.deaths;
+    const agents = Array.from(bucket.agents.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([agent, count]) => `x${count} ${agent}`);
+
+    return {
+      riotId: bucket.riotId,
+      rank: bucket.rank,
+      rr: bucket.rr,
+      kda: `${bucket.kills}/${bucket.deaths}/${bucket.assists}`,
+      hs,
+      plusMinus: plusMinus > 0 ? `+${plusMinus}` : String(plusMinus),
+      kd,
+      adr,
+      fk: "-",
+      fd: "-",
+      mk: bucket.matches,
+      agents,
+      matches: bucket.matches,
+      kills: bucket.kills,
+      deaths: bucket.deaths,
+      assists: bucket.assists,
+      rounds: bucket.rounds
+    };
+  });
+}
+
+async function hydrateRanks(players, config) {
+  await Promise.all(players.map(async player => {
+    try {
+      const { name, tag } = parseDisplayName(player.riotId);
+      const mmr = await apiFetch(`/valorant/v3/mmr/${config.region}/${config.platform}/${encodeURIComponent(name)}/${encodeURIComponent(tag)}`, config.apiKey);
+      player.rank = mmr?.data?.current?.tier?.name || player.rank;
+      player.rr = mmr?.data?.current?.rr ?? player.rr;
+    } catch {
+      player.rank = player.rank === "Loading..." ? "Unavailable" : player.rank;
+      player.rr = player.rr ?? "--";
+    }
+  }));
+  return players;
+}
+
+function render(players) {
+  grid.innerHTML = players.map(p => {
+    const meta = rankMeta(p.rank);
+    const href = trackerUrl(p.riotId);
+    const nameOnly = p.riotId.split("#")[0];
+    const bg = BACKGROUNDS[nameOnly];
+    const styleAttr = bg ? `style="--bg-image: url('${bg}');"` : "";
+
+    return `
+      <div class="card" ${styleAttr} role="link" tabindex="0" onclick="window.open('${href}', '_blank', 'noopener,noreferrer')" onkeydown="if(event.key==='Enter' || event.key===' '){ event.preventDefault(); window.open('${href}', '_blank', 'noopener,noreferrer'); }">
+        <div class="top">
+          <div class="rank-icon ${meta.cls}">
+            <img src="${meta.icon}" alt="" />
           </div>
-
-          <div class="stats">
-            <div class="stat">
-              <div class="value">${k}/${d}/${a}</div>
-              <div class="label">KDA</div>
-            </div>
-
-            <div class="stat">
-              <div class="value">${kd}</div>
-              <div class="label">K/D</div>
-            </div>
-
-            <div class="stat">
-              <div class="value">${p.hs || 0}%</div>
-              <div class="label">HS%</div>
-            </div>
+          <div>
+            <div class="name" title="${p.riotId}">${p.riotId}</div>
+            <div class="sub">Current Premier act • ${p.matches} match${p.matches === 1 ? "" : "es"}</div>
           </div>
         </div>
-      `;
-    }).join("");
 
-  } catch (err) {
-    grid.innerHTML = "Failed to load stats";
-    console.error(err);
+        <div class="rank-line">${p.rank} • ${p.rr} RR</div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="value">${p.kda}</div>
+            <div class="label">K/D/A</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${p.plusMinus}</div>
+            <div class="label">+/-</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${formatNumber(p.kd)}</div>
+            <div class="label">K/D</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${formatNumber(p.adr)}</div>
+            <div class="label">ADR</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${formatNumber(p.hs)}%</div>
+            <div class="label">HS%</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${p.kills}</div>
+            <div class="label">K</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${p.deaths}</div>
+            <div class="label">D</div>
+          </div>
+
+          <div class="stat">
+            <div class="value">${p.assists}</div>
+            <div class="label">A</div>
+          </div>
+        </div>
+
+        <div class="agents-box">
+          <div class="agents-title">AGENTS PLAYED</div>
+          <div class="agents-list">
+            ${p.agents.map(a => {
+              const match = a.match(/x(\d+)\s(.+)/);
+              const count = match ? match[1] : "";
+              const name = match ? match[2] : a;
+              const icon = AGENT_ICONS[name] || "";
+
+              return `
+                <div class="agent-item">
+                  <img src="${icon}" alt="${name}">
+                  <span>x${count}</span>
+                </div>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderTeamSummary(players) {
+  if (!players.length) {
+    teamAvgHs.textContent = "--";
+    teamAvgKd.textContent = "--";
+    teamAvgAdr.textContent = "--";
+    return;
+  }
+
+  const avgHs = players.reduce((sum, p) => sum + Number(p.hs || 0), 0) / players.length;
+  const avgKd = players.reduce((sum, p) => sum + Number(p.kd || 0), 0) / players.length;
+  const avgAdr = players.reduce((sum, p) => sum + Number(p.adr || 0), 0) / players.length;
+
+  teamAvgHs.textContent = `${formatNumber(avgHs)}%`;
+  teamAvgKd.textContent = formatNumber(avgKd);
+  teamAvgAdr.textContent = formatNumber(avgAdr, 0);
+}
+
+async function loadLiveStats() {
+  const config = CONFIG;
+
+  if (!config.apiKey || config.apiKey === "PASTE_YOUR_HENRIK_API_KEY_HERE") {
+    setStatus("Set your Henrik API key in the CONFIG object inside this HTML file.", "error");
+    return;
+  }
+  if (!config.teamName) {
+    setStatus("Set your Premier team name in the CONFIG object inside this HTML file.", "error");
+    return;
+  }
+  setStatus("Loading Premier team, active season, and match details...", "loading");
+  grid.innerHTML = "";
+  renderTeamSummary([]);
+
+  try {
+    const team = await findPremierTeam(config);
+    const seasonsResponse = await apiFetch(`/valorant/v1/premier/seasons/${config.region}`, config.apiKey);
+    const activeSeason = pickCurrentSeason(seasonsResponse.data);
+    if (!activeSeason) {
+      throw new Error("Could not determine the current Premier season for this region.");
+    }
+
+    const history = await apiFetch(`/valorant/v1/premier/${team.id}/history`, config.apiKey);
+    const leagueMatches = Array.isArray(history?.data?.league_matches) ? history.data.league_matches : [];
+    const currentActMatches = leagueMatches.filter(match => isWithinSeason(match.started_at, activeSeason));
+
+    if (!currentActMatches.length) {
+      throw new Error(`No Premier matches were found for ${team.name} in the active season window.`);
+    }
+
+    const details = await Promise.all(currentActMatches.map(match => apiFetch(`/valorant/v4/match/${config.region}/${match.id}`, config.apiKey)));
+    const players = aggregateMatches(details, team.member || []);
+    await hydrateRanks(players, config);
+
+    players.sort((a, b) => b.kd - a.kd);
+    render(players);
+    renderTeamSummary(players);
+
+    const seasonLabel = activeSeason?.events?.[0]?.map_selection?.maps?.map(m => m.name).join(", ");
+    setStatus(
+      `Loaded <strong>${players.length}</strong> players from <strong>${currentActMatches.length}</strong> Premier match${currentActMatches.length === 1 ? "" : "es"} for <strong>${team.name}</strong>. Season window: ${new Date(activeSeason.starts_at).toLocaleDateString()} - ${new Date(activeSeason.ends_at).toLocaleDateString()}${seasonLabel ? ` • Maps in rotation: ${seasonLabel}` : ""}.`
+    );
+  } catch (error) {
+    console.error(error);
+    setStatus(`Could not load live stats: ${error.message}`, "error");
   }
 }
 
-loadStats();
+loadLiveStats();
 </script>
 </body>
 </html>
